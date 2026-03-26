@@ -30,6 +30,8 @@ setup(
         'ws4py',
         'requests',
         'getmac',
+        'fastapi',
+        'uvicorn',
     ],
     data_files=[
         ('config', ['data/config.json'])
