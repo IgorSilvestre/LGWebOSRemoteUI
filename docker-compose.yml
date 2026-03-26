@@ -1,0 +1,15 @@
+services:
+  lgtv-webui:
+    build: .
+    container_name: lgtv-webui
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./data:/etc/lgtv
+    environment:
+      - PYTHONUNBUFFERED=1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
