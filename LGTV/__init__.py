@@ -87,11 +87,12 @@ def write_config(filename: str, config):
 def main():
     parser = argparse.ArgumentParser(
         'lgtv',
-        description = '''LGTV Controller\nAuthor: Karl Lattimer <karl@qdh.org.uk>''',
+        '''LGTV Controller\nAuthor: Karl Lattimer <karl@qdh.org.uk>\n\nWebUI:\n  lgtv web [--port 8000]''',
         epilog = get_commands(),
         formatter_class = argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument('--name', '-n', default=None)
+    parser.add_argument('--port', '-p', default=8000, type=int, help='Port for the web UI')
     parser.add_argument('command')
     parser.add_argument('args', nargs='*')
     parser.add_argument('--ssl', action='store_true')
@@ -107,7 +108,13 @@ def main():
         with open(filename, "r") as f:
             config = json.load(f)
 
-    if args.command == "scan":
+    if args.command == "web":
+        from .web import start_server
+        print(f"Starting web UI on http://0.0.0.0:{args.port}")
+        start_server(port=args.port)
+        sys.exit(0)
+
+    elif args.command == "scan":
         results = LGTVScan()
         if len(results) > 0:
             print(json.dumps({
