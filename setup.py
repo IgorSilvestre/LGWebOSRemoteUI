@@ -32,6 +32,7 @@ setup(
         'getmac',
         'fastapi',
         'uvicorn',
+        'jinja2',
     ],
     data_files=[
         ('config', ['data/config.json'])
