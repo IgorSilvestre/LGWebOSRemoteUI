@@ -16,19 +16,22 @@ async function loadConfig() {
         const data = await res.json();
 
         const select = document.getElementById('tv-select');
+        const removeBtn = document.getElementById('remove-tv-btn');
         select.innerHTML = '';
 
         const tvNames = Object.keys(data.tvs);
 
         if (tvNames.length === 0) {
-            document.getElementById('tv-select').classList.add('hidden');
+            select.classList.add('hidden');
+            if (removeBtn) removeBtn.classList.add('hidden');
             document.getElementById('controls-container').classList.add('hidden');
             document.getElementById('dashboard').classList.add('hidden');
             document.getElementById('no-tv-container').classList.remove('hidden');
             return;
         }
 
-        document.getElementById('tv-select').classList.remove('hidden');
+        select.classList.remove('hidden');
+        if (removeBtn) removeBtn.classList.remove('hidden');
         document.getElementById('controls-container').classList.remove('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
         document.getElementById('no-tv-container').classList.add('hidden');
@@ -152,6 +155,8 @@ function showScanModal() {
     document.getElementById('scan-loading').classList.add('hidden');
     document.getElementById('scan-results').classList.add('hidden');
     document.getElementById('auth-loading').classList.add('hidden');
+    
+    updateAddedTVsInModal();
 }
 
 function hideScanModal() {
@@ -203,6 +208,65 @@ async function startScan() {
     } catch (e) {
         document.getElementById('scan-loading').classList.add('hidden');
         showToast('Scan failed', 'error');
+    }
+}
+
+async function removeCurrentTV() {
+    if (!currentTV) return;
+    await handleRemoveTVByName(currentTV);
+}
+
+async function handleRemoveTVByName(name) {
+    if (!confirm(`Are you sure you want to remove ${name}?`)) return;
+
+    try {
+        const res = await fetch('/api/remove_tv', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({tv_name: name})
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            showToast('TV removed', 'success');
+            loadConfig();
+            if (document.getElementById('scan-modal').classList.contains('hidden') === false) {
+                updateAddedTVsInModal();
+            }
+        } else {
+            showToast('Error: ' + (data.detail || 'Unknown error'), 'error');
+        }
+    } catch (e) {
+        showToast('Failed to remove TV', 'error');
+    }
+}
+
+async function updateAddedTVsInModal() {
+    try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        const tvNames = Object.keys(data.tvs);
+        const container = document.getElementById('added-tvs-container');
+        const list = document.getElementById('added-tvs-list');
+        
+        list.innerHTML = '';
+        if (tvNames.length > 0) {
+            container.classList.remove('hidden');
+            tvNames.forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100';
+                div.innerHTML = `
+                    <span class="font-semibold text-sm">${name}</span>
+                    <button onclick="handleRemoveTVByName('${name}')" class="text-red-600 hover:text-red-800 p-1" title="Remove TV">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+        } else {
+            container.classList.add('hidden');
+        }
+    } catch (e) {
+        console.error('Failed to update added TVs in modal', e);
     }
 }
 
@@ -259,3 +323,15 @@ function showToast(message, type = 'success') {
         toast.classList.remove('show');
     }, 3000);
 }
+
+// Make functions available globally explicitly
+window.removeCurrentTV = removeCurrentTV;
+window.handleRemoveTVByName = handleRemoveTVByName;
+window.showScanModal = showScanModal;
+window.hideScanModal = hideScanModal;
+window.startScan = startScan;
+window.sendCommand = sendCommand;
+window.sendButton = sendButton;
+window.sendNotif = sendNotif;
+window.openUrl = openUrl;
+window.authTV = authTV;

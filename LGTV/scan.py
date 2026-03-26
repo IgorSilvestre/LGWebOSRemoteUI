@@ -1,7 +1,11 @@
 import socket
 import re
+import logging
 from urllib.parse import unquote
 from time import sleep
+
+
+logger = logging.getLogger(__name__)
 
 
 def LGTVScan():
@@ -12,7 +16,7 @@ def LGTVScan():
               b'ST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n\r\n'
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(10)
+    sock.settimeout(3)
 
     addresses = []
     attempts = 4
@@ -22,7 +26,12 @@ def LGTVScan():
         tv_name = None
         address = None
         data = {}
-        response, address = sock.recvfrom(512)
+        try:
+            response, address = sock.recvfrom(512)
+        except (socket.timeout, TimeoutError) as e:
+            logger.error(f"Timeout error: {e}")
+            continue
+
         for line in response.split(b'\n'):
             if line.startswith(b'USN'):
                 try: 
@@ -43,8 +52,8 @@ def LGTVScan():
         if re.search(b'LG', response):
             addresses.append(data)
         else:
-            print ('Unknown device')
-            print (response, address)
+            logger.info('Unknown device')
+            logger.info(f"{response} {address}")
         sleep(2)
 
     sock.close()

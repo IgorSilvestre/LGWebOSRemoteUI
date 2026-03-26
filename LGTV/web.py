@@ -42,6 +42,9 @@ class AuthRequest(BaseModel):
     tv_name: str
     host: str
 
+class RemoveTVRequest(BaseModel):
+    tv_name: str
+
 def get_html():
     return """
 <!DOCTYPE html>
@@ -87,6 +90,9 @@ def get_html():
             <div class="flex items-center space-x-2">
                 <select id="tv-select" class="bg-white text-gray-800 rounded px-2 py-1 text-sm outline-none border border-transparent focus:border-white w-32 md:w-48 hidden">
                 </select>
+                <button id="remove-tv-btn" onclick="removeCurrentTV()" class="text-red-300 hover:text-red-100 p-1 hidden" title="Remove current TV">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
                 <button onclick="showScanModal()" class="bg-white text-primary rounded px-3 py-1 text-sm font-semibold hover:bg-gray-100 transition">
                     Scan / Add
                 </button>
@@ -288,19 +294,22 @@ def get_html():
                 const data = await res.json();
 
                 const select = document.getElementById('tv-select');
+                const removeBtn = document.getElementById('remove-tv-btn');
                 select.innerHTML = '';
 
                 const tvNames = Object.keys(data.tvs);
 
                 if (tvNames.length === 0) {
-                    document.getElementById('tv-select').classList.add('hidden');
+                    select.classList.add('hidden');
+                    if (removeBtn) removeBtn.classList.add('hidden');
                     document.getElementById('controls-container').classList.add('hidden');
                     document.getElementById('dashboard').classList.add('hidden');
                     document.getElementById('no-tv-container').classList.remove('hidden');
                     return;
                 }
 
-                document.getElementById('tv-select').classList.remove('hidden');
+                select.classList.remove('hidden');
+                if (removeBtn) removeBtn.classList.remove('hidden');
                 document.getElementById('controls-container').classList.remove('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
                 document.getElementById('no-tv-container').classList.add('hidden');
@@ -468,6 +477,32 @@ def get_html():
             }
         }
 
+        async function removeCurrentTV() {
+            if (!currentTV) return;
+            await handleRemoveTVByName(currentTV);
+        }
+
+        async function handleRemoveTVByName(name) {
+            if (!confirm(`Are you sure you want to remove ${name}?`)) return;
+
+            try {
+                const res = await fetch('/api/remove_tv', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({tv_name: name})
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('TV removed', 'success');
+                    loadConfig();
+                } else {
+                    showToast('Error: ' + (data.detail || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showToast('Failed to remove TV', 'error');
+            }
+        }
+
         async function authTV(host, defaultName) {
             const tvName = prompt("Enter a name for this TV to save:", defaultName.replace(/[^a-zA-Z0-9]/g, ''));
             if (!tvName) return;
@@ -567,6 +602,27 @@ def api_auth(req: AuthRequest):
     except Exception as e:
         logger.error(f"Auth error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/remove_tv")
+def api_remove_tv(req: RemoveTVRequest):
+    config, filename = get_config()
+    if not filename:
+        raise HTTPException(status_code=500, detail="Cannot find config file")
+
+    if req.tv_name in config:
+        del config[req.tv_name]
+        # Update default if needed
+        if config.get("_default") == req.tv_name:
+            remaining_tvs = [k for k in config.keys() if k != "_default"]
+            if remaining_tvs:
+                config["_default"] = remaining_tvs[0]
+            else:
+                del config["_default"]
+
+        write_config(filename, config)
+        return {"status": "success", "message": f"Successfully removed {req.tv_name}"}
+    else:
+        raise HTTPException(status_code=404, detail=f"TV '{req.tv_name}' not found in config")
 
 @app.post("/api/command")
 def api_command(req: CommandRequest):

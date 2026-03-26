@@ -49,6 +49,9 @@ class AuthRequest(BaseModel):
     tv_name: str
     host: str
 
+class RemoveTVRequest(BaseModel):
+    tv_name: str
+
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     with open("templates/index.html", "r") as f:
@@ -64,8 +67,12 @@ def api_get_config():
 
 @app.post("/api/scan")
 def api_scan():
-    results = LGTVScan()
-    return {"count": len(results), "list": results}
+    try:
+        results = LGTVScan()
+        return {"count": len(results), "list": results}
+    except Exception as e:
+        logger.error(f"Scan error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/auth")
 def api_auth(req: AuthRequest):
@@ -97,6 +104,27 @@ def api_auth(req: AuthRequest):
     except Exception as e:
         logger.error(f"Auth error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/remove_tv")
+def api_remove_tv(req: RemoveTVRequest):
+    config, filename = get_config()
+    if not filename:
+        raise HTTPException(status_code=500, detail="Cannot find config file")
+
+    if req.tv_name in config:
+        del config[req.tv_name]
+        # Update default if needed
+        if config.get("_default") == req.tv_name:
+            remaining_tvs = [k for k in config.keys() if k != "_default"]
+            if remaining_tvs:
+                config["_default"] = remaining_tvs[0]
+            else:
+                del config["_default"]
+
+        write_config(filename, config)
+        return {"status": "success", "message": f"Successfully removed {req.tv_name}"}
+    else:
+        raise HTTPException(status_code=404, detail=f"TV '{req.tv_name}' not found in config")
 
 @app.post("/api/command")
 def api_command(req: CommandRequest):
